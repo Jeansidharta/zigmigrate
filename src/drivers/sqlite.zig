@@ -12,10 +12,7 @@ pub fn init(self: *@This()) !void {
         \\  applied_at INTEGER DEFAULT (strftime('%s', 'now'))
         \\);
     ;
-    var statement = try self.db.prepare(query);
-    defer statement.deinit();
-
-    try statement.exec(.{}, .{});
+    try executeQuery(self.db, query, .{});
 }
 
 // Upgrade the database to the latest revision
