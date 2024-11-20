@@ -1,6 +1,6 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
-const root = @import("root");
+const lib = @import("../lib.zig");
 
 db: *sqlite.Db,
 
@@ -19,13 +19,13 @@ pub fn init(self: *@This()) !void {
 }
 
 // Upgrade the database to the latest revision
-pub fn up(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
+pub fn up(self: *@This(), allocator: std.mem.Allocator) !void {
     // Read in the config file contents
     const config_contents = try std.fs.cwd().readFileAlloc(allocator, "zigmigrate.json", 1024 * 1024);
     defer allocator.free(config_contents);
 
     // parse the json
-    var parsed = try std.json.parseFromSlice(root.Config, allocator, config_contents, .{});
+    var parsed = try std.json.parseFromSlice(lib.Config, allocator, config_contents, .{});
     defer parsed.deinit();
     const config = parsed.value;
 
@@ -34,11 +34,11 @@ pub fn up(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
     //defer folder.close();
 
     // get the filenames
-    var migration_files = try root.allocMigrationFileNamesSorted(allocator, folder);
+    var migration_files = try lib.allocMigrationFileNamesSorted(allocator, folder);
     defer migration_files.deinit();
 
     // load the migrations
-    const existing_migrations = try allocListExistingMigrations(allocator, db);
+    const existing_migrations = try allocListExistingMigrations(allocator, self.db);
     defer allocator.free(existing_migrations);
 
     if (migration_files.items.len < 1) {
@@ -64,36 +64,39 @@ pub fn up(allocator: std.mem.Allocator, db: *sqlite.Db) !void {
             if (end_index_opt) |end_index| {
 
                 // Generate the query
-                const query2: []const u8 = file_contents[start_index + start_needle.len .. end_index - 1];
-                var statement2 = try db.prepareDynamic(query2);
-                defer statement2.deinit();
+                const query: []const u8 = file_contents[start_index + start_needle.len .. end_index - 1];
+                var statement = self.db.prepareDynamic(query) catch {
+                    std.log.err("Error with the following query: {s}", .{query});
+                    return error.InvalidQuery;
+                };
+                defer statement.deinit();
 
                 // Execute the query
-                try statement2.exec(.{}, .{});
+                try statement.exec(.{}, .{});
 
                 // add the filename to the migrations table
 
-                const query3 =
+                const query2 =
                     \\  INSERT INTO migrations (name) VALUES (?);
                 ;
-                var statement3 = try db.prepare(query3);
-                defer statement3.deinit();
+                var statement2 = try self.db.prepare(query2);
+                defer statement2.deinit();
 
-                try statement3.exec(.{}, .{filename});
+                try statement2.exec(.{}, .{filename});
                 std.log.warn("upgraded {s} successfully", .{filename});
             }
         }
     }
 }
 
-pub fn allocListExistingMigrations(allocator: std.mem.Allocator, db: *sqlite.Db) ![]root.Migration {
+pub fn allocListExistingMigrations(allocator: std.mem.Allocator, db: *sqlite.Db) ![]lib.Migration {
     const query =
         \\ SELECT * FROM migrations;
     ;
     var statement = try db.prepare(query);
     defer statement.deinit();
 
-    return statement.all(root.Migration, allocator, .{}, .{});
+    return statement.all(lib.Migration, allocator, .{}, .{});
 }
 
 test "allocating migration files in order" {
@@ -111,7 +114,7 @@ test "allocating migration files in order" {
         file.close();
     }
 
-    var filenames = try root.allocMigrationFileNamesSorted(allocator, temp_dir.dir);
+    var filenames = try lib.allocMigrationFileNamesSorted(allocator, temp_dir.dir);
     defer filenames.deinit();
 
     for (expected_migration_files, 0..) |name, i| {
@@ -119,7 +122,7 @@ test "allocating migration files in order" {
     }
 }
 
-fn hasBeenMigrated(filename: []const u8, migrations: []root.Migration) bool {
+fn hasBeenMigrated(filename: []const u8, migrations: []lib.Migration) bool {
     for (migrations) |migration| {
         if (std.mem.eql(u8, migration.name, filename)) return true;
     }

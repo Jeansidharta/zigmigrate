@@ -28,6 +28,17 @@ pub const Driver = union(enum) {
     }
 };
 
+pub fn allocJsonFromFile(T: type, allocator: std.mem.Allocator, file_path: []const u8) !std.json.Parsed(T) {
+    // load in the file contents
+    var file = try std.fs.cwd().openFile(file_path, .{});
+    defer file.close();
+    const contents = try file.readToEndAlloc(allocator, 1024 * 1024);
+    //defer allocator.free(contents);
+
+    const parsed = try std.json.parseFromSlice(T, allocator, contents, .{});
+    return parsed;
+}
+
 pub fn allocMigrationFileNamesSorted(allocator: std.mem.Allocator, dir: std.fs.Dir) !std.ArrayList([]const u8) {
     var migration_files = std.ArrayList([]const u8).init(allocator);
     var iter = dir.iterate();

@@ -3,7 +3,7 @@ const sqlite = @import("sqlite");
 const cli = @import("zig-cli");
 const lib = @import("lib.zig");
 
-var config = struct {
+var cli_config = struct {
     db_name: []const u8 = undefined,
     migration_name: []const u8 = undefined,
 }{};
@@ -25,7 +25,7 @@ fn initCommand(r: *cli.AppRunner) !cli.Command {
                         .{
                             .name = "db_name",
                             .help = "The name of the new database (e.g., database.db)",
-                            .value_ref = r.mkRef(&config.db_name),
+                            .value_ref = r.mkRef(&cli_config.db_name),
                         },
                     }),
                 },
@@ -49,7 +49,7 @@ fn createMigrationCommand(r: *cli.AppRunner) !cli.Command {
                         .{
                             .name = "migration_name",
                             .help = "The name of the new migration (e.g., add_users_table)",
-                            .value_ref = r.mkRef(&config.migration_name),
+                            .value_ref = r.mkRef(&cli_config.migration_name),
                         },
                     }),
                 },
@@ -57,6 +57,46 @@ fn createMigrationCommand(r: *cli.AppRunner) !cli.Command {
             },
         },
     };
+}
+
+// Define the `create` command
+fn upCommand(_: *cli.AppRunner) !cli.Command {
+    return cli.Command{
+        .name = "up",
+        .description = cli.Description{
+            .one_line = "Create a new migration file with the specified name",
+        },
+        .target = cli.CommandTarget{
+            .action = cli.CommandAction{
+                .exec = &runUp,
+            },
+        },
+    };
+}
+
+fn runUp() !void {
+    // read the json file
+    var parsed = try lib.allocJsonFromFile(lib.Config, allocator, "zigmigrate.json");
+    defer parsed.deinit();
+
+    // Convert the db file path to a zero terminated string
+    const db_path = try std.fmt.allocPrintZ(allocator, "{s}", .{parsed.value.db_name});
+    defer allocator.free(db_path);
+
+    var db = try sqlite.Db.init(.{
+        .mode = sqlite.Db.Mode{ .File = db_path },
+        .open_flags = .{
+            .write = true,
+            .create = true,
+        },
+        .threading_mode = .MultiThread,
+    });
+    defer db.deinit();
+
+    var sqlite_driver = lib.SqliteDriver{ .db = &db };
+    var driver = lib.Driver{ .sqlite_driver = &sqlite_driver };
+
+    try driver.up(allocator);
 }
 
 // Parse CLI arguments
@@ -72,6 +112,7 @@ fn parseArgs() cli.AppRunner.Error!cli.ExecFn {
             .target = cli.CommandTarget{
                 .subcommands = &.{
                     try initCommand(&r),
+                    try upCommand(&r),
                     try createMigrationCommand(&r),
                 },
             },
@@ -93,15 +134,13 @@ pub fn main() anyerror!void {
 
 // Cleanup allocated resources
 fn cleanup() void {
-    allocator.free(config.db_name);
-    allocator.free(config.migration_name);
+    allocator.free(cli_config.db_name);
+    allocator.free(cli_config.migration_name);
 }
-
-pub const Config = struct { db_name: []const u8, migration_folder: []const u8 };
 
 // Implementation of the `init` command only for sqlite currently
 fn runInit() !void {
-    const db_name = config.db_name;
+    const db_name = cli_config.db_name;
 
     const db_name_zero = try std.fmt.allocPrintZ(allocator, "{s}", .{db_name});
     defer allocator.free(db_name_zero);
@@ -121,9 +160,9 @@ fn runInit() !void {
     try driver.init();
 
     // Create the json file
-    const configuration = Config{
-        .db_name = config.db_name,
-        .migration_folder = "migrations",
+    const configuration = lib.Config{
+        .db_name = cli_config.db_name,
+        .migration_path = "migrations",
     };
     var buff: [256]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buff);
@@ -146,7 +185,7 @@ fn runCreateMigration() !void {
     std.fs.cwd().makeDir("migrations") catch {};
 
     // Generate the migration filename
-    const migration_name = config.migration_name;
+    const migration_name = cli_config.migration_name;
     const filename = try lib.generateMigrationFileName(allocator, migration_name);
     defer allocator.free(filename);
 
