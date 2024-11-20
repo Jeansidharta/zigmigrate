@@ -62,31 +62,37 @@ pub fn up(self: *@This(), allocator: std.mem.Allocator) !void {
         if (start_index_opt) |start_index| {
             const end_index_opt = std.mem.indexOf(u8, file_contents, end_needle);
             if (end_index_opt) |end_index| {
+                //const query: []const u8 = file_contents[start_index + start_needle.len .. end_index - 1];
+                var i = start_index + start_needle.len;
 
-                // Generate the query
-                const query: []const u8 = file_contents[start_index + start_needle.len .. end_index - 1];
-                var statement = self.db.prepareDynamic(query) catch {
-                    std.log.err("Error with the following query: {s}", .{query});
-                    return error.InvalidQuery;
-                };
-                defer statement.deinit();
+                // Execute the query for every statment found that ends with ;
+                while (std.mem.indexOfPos(u8, file_contents[0 .. end_index - 1], i, ";")) |index| {
+                    try executeQuery(self.db, file_contents[i..index], .{});
+                    i = index + 1;
+                } else {
+                    const query = file_contents[i .. end_index - 1];
+                    if (query.len > 0) try executeQuery(self.db, file_contents[i..], .{});
+                }
 
-                // Execute the query
-                try statement.exec(.{}, .{});
+                // Add the migration to the migration table
+                try executeQuery(self.db, "INSERT INTO migrations (name) VALUES (?)", .{filename});
 
-                // add the filename to the migrations table
-
-                const query2 =
-                    \\  INSERT INTO migrations (name) VALUES (?);
-                ;
-                var statement2 = try self.db.prepare(query2);
-                defer statement2.deinit();
-
-                try statement2.exec(.{}, .{filename});
                 std.log.warn("upgraded {s} successfully", .{filename});
             }
         }
     }
+}
+
+fn executeQuery(db: *sqlite.Db, contents: []const u8, args: anytype) !void {
+    var diags = sqlite.Diagnostics{};
+    var statement = db.prepareDynamicWithDiags(contents, .{ .diags = &diags }) catch {
+        std.log.err("Error in Query: {s}\n{s}", .{ contents, diags });
+        return error.InvalidQuery;
+    };
+    defer statement.deinit();
+
+    // Execute the query
+    try statement.exec(.{}, args);
 }
 
 pub fn allocListExistingMigrations(allocator: std.mem.Allocator, db: *sqlite.Db) ![]lib.Migration {
