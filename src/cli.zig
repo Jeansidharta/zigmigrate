@@ -97,9 +97,7 @@ fn cleanup() void {
     allocator.free(config.migration_name);
 }
 
-pub const Config = struct {
-    db_name: []const u8,
-};
+pub const Config = struct { db_name: []const u8, migration_folder: []const u8 };
 
 // Implementation of the `init` command only for sqlite currently
 fn runInit() !void {
@@ -120,8 +118,26 @@ fn runInit() !void {
     var sqlite_driver = lib.SqliteDriver{ .db = &db };
     var driver = lib.Driver{ .sqlite_driver = &sqlite_driver };
 
-    // Create the json file
     try driver.init();
+
+    // Create the json file
+    const configuration = Config{
+        .db_name = config.db_name,
+        .migration_folder = "migrations",
+    };
+    var buff: [256]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buff);
+    var bytes = std.ArrayList(u8).init(fba.allocator());
+    try std.json.stringify(configuration, .{}, bytes.writer());
+
+    var file = std.fs.cwd().createFile("zigmigrate.json", .{}) catch |err| {
+        std.log.warn("Err: {any}", .{err});
+        return;
+    };
+
+    defer file.close();
+
+    try file.writeAll(bytes.items);
 }
 
 // Implementation of the `create` command
