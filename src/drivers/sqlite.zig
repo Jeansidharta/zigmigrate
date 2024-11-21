@@ -66,15 +66,12 @@ pub fn up(self: *@This(), allocator: std.mem.Allocator) !void {
                 while (std.mem.indexOfPos(u8, file_contents[0 .. end_index - 1], i, ";")) |index| {
                     try executeQuery(self.db, file_contents[i..index], .{});
                     i = index + 1;
-                } else {
-                    const query = file_contents[i .. end_index - 1];
-                    if (query.len > 0) try executeQuery(self.db, file_contents[i..], .{});
                 }
 
                 // Add the migration to the migration table
                 try executeQuery(self.db, "INSERT INTO migrations (name) VALUES (?)", .{filename});
 
-                std.log.warn("upgraded {s} successfully", .{filename});
+                std.log.info("Upgraded {s} successfully", .{filename});
             }
         }
     }
