@@ -60,8 +60,6 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("sqlite", sqlite.module("sqlite"));
     exe.linkLibrary(sqlite.artifact("sqlite"));
 
-    const clap = b.dependency("clap", .{});
-    exe.root_module.addImport("clap", clap.module("clap"));
     exe.root_module.addImport("zigmigrate", zigmigrate_module);
 
     // This allows the user to pass arguments to the application in the build

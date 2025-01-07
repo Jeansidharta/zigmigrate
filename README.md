@@ -110,7 +110,7 @@ CREATE TABLE migrations (
 ## Building from Source
 
 Requirements:
-- Zig 0.11.0 or later
+- Zig Master (v0.14.0-dev)
 
 ```bash
 git clone https://github.com/yourusername/zigmigrate
