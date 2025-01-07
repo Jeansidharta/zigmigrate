@@ -24,16 +24,12 @@
     // internet connectivity.
     .dependencies = .{
         .sqlite = .{
-            .url = "https://github.com/vrischmann/zig-sqlite/archive/68637d5358ee0060b761bfa46e476f772ff8410e.tar.gz",
-            .hash = "12208c5781b9f325c5212b9d228511059f3970d878015d2da794b5d5441c1670085e",
-        },
-        .clap = .{
-            .url = "git+https://github.com/Hejsil/zig-clap#2e58c8e49a0da7075fc66e4ae499b7acc5ea5a3f",
-            .hash = "1220bee7158b31d74899f04f39352e3cb875a3287324f28f9217f9e5618f018a2708",
+            .url = "git+https://github.com/vrischmann/zig-sqlite#7f4be7d30b126affb66b390c7825addb1c3506bd",
+            .hash = "1220940ae067451e7e6824e9b92baceac93b0bd6fa9ffd315179cc9a7ce5430a46ac",
         },
         .@"zig-cli" = .{
-            .url = "https://github.com/sam701/zig-cli/archive/ac82640e750efb3b89c609032bdec0898739a790.tar.gz",
-            .hash = "1220203f73d7a17299a5d1a2f7902bc1c8ad9d20c8f7c40b4852dfd77bdb6ff7ec5e",
+            .url = "git+https://github.com/sam701/zig-cli#9a94c4803a52e54c26b198096d63fb5bde752da2",
+            .hash = "1220ab73fb7cc11b2308edc3364988e05efcddbcac31b707f55e6216d1b9c0da13f1",
         },
     },
     .paths = .{""},
